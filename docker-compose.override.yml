@@ -1,0 +1,9 @@
+services:
+  wordpress:
+    read_only: false
+    volumes:
+      - ./wp-content:/var/www/html/wp-content   # bind mounts for live editing
+    environment:
+      WP_ENVIRONMENT_TYPE: development
+      DISALLOW_FILE_MODS: "false"
+      DISALLOW_FILE_EDIT: "false"
