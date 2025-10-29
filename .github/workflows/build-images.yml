@@ -1,0 +1,131 @@
+name: Build, Scan with Trivy, and Push Docker images (app + vendor)
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - "app.Dockerfile"
+      - "builder/**"
+      - "php/**"
+      - "mu-plugins/**"
+      - ".github/workflows/build-images.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+  packages: write
+  security-events: write   # needed to upload SARIF
+
+jobs:
+  build-scan-push:
+    runs-on: ubuntu-latest
+    env:
+      REGISTRY: ghcr.io
+      IMAGE_OWNER: ${{ github.repository_owner }}
+      APP_IMAGE: ghcr.io/${{ github.repository_owner }}/wordpress-immutable
+      BUILDER_IMAGE: ghcr.io/${{ github.repository_owner }}/wp-vendor-builder
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # ---------- Build locally (scanable) ----------
+      # Use --load (single-arch) so Trivy can scan the local image tag.
+      - name: Build app image (scan target)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./app.Dockerfile
+          tags: app:scan
+          load: true          # builds a local image named app:scan
+
+      - name: Build vendor builder image (scan target)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./builder
+          file: ./builder/Dockerfile
+          tags: builder:scan
+          load: true
+
+      # ---------- Trivy scans (fail on High/Critical) ----------
+      - name: Trivy scan (app)
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: app:scan
+          format: sarif
+          output: trivy-app.sarif
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
+
+      - name: Upload SARIF (app)
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-app.sarif
+
+      - name: Trivy scan (vendor builder)
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: builder:scan
+          format: sarif
+          output: trivy-builder.sarif
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
+
+      - name: Upload SARIF (vendor builder)
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-builder.sarif
+
+      # ---------- If scans pass, build multi-arch & push ----------
+      # - name: Extract app metadata
+      #   id: meta_app
+      #   uses: docker/metadata-action@v5
+      #   with:
+      #     images: ${{ env.APP_IMAGE }}
+      #     tags: |
+      #       type=ref,event=branch
+      #       type=sha
+      #       type=raw,value=latest
+
+      # - name: Build & push app image (multi-arch)
+      #   uses: docker/build-push-action@v5
+      #   with:
+      #     context: .
+      #     file: ./app.Dockerfile
+      #     push: true
+      #     platforms: linux/amd64,linux/arm64
+      #     tags: ${{ steps.meta_app.outputs.tags }}
+      #     labels: ${{ steps.meta_app.outputs.labels }}
+      #     cache-from: type=gha
+      #     cache-to: type=gha,mode=max
+
+      # - name: Extract vendor builder metadata
+      #   id: meta_builder
+      #   uses: docker/metadata-action@v5
+      #   with:
+      #     images: ${{ env.BUILDER_IMAGE }}
+      #     tags: |
+      #       type=ref,event=branch
+      #       type=sha
+      #       type=raw,value=latest
+
+      # - name: Build & push vendor builder image (multi-arch)
+      #   uses: docker/build-push-action@v5
+      #   with:
+      #     context: ./builder
+      #     file: ./builder/Dockerfile
+      #     push: true
+      #     platforms: linux/amd64,linux/arm64
+      #     tags: ${{ steps.meta_builder.outputs.tags }}
+      #     labels: ${{ steps.meta_builder.outputs.labels }}
+      #     cache-from: type=gha
+      #     cache-to: type=gha,mode=max

@@ -1,0 +1,38 @@
+# VCS / metadata
+.git
+.gitignore
+.gitattributes
+.github/
+
+# Node & build outputs anywhere (theme, plugins, tooling)
+**/node_modules
+**/.pnpm-store
+**/.yarn
+**/.yarn/cache
+**/.yarn/install-state.gz
+**/dist
+**/build
+**/.cache
+**/.vite
+**/.parcel-cache
+
+# Composer build cache (we don't need to send your local caches to the builder)
+**/vendor
+**/composer.lock
+**/composer.phar
+
+# Local WP content overrides (dev-only bind mounts)
+wp-content/uploads
+wp-content/cache
+wp-content/upgrade
+wp-content/debug.log
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.log
+
+# Docker noise
+docker-compose.override.yml  # dev-only; prod build shouldn't need it

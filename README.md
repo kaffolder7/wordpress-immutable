@@ -136,6 +136,12 @@ services:
     command: bash -lc 'while true; do wp cron event run --due-now --path=/var/www/html --allow-root; sleep 60; done'
 ```
 
+or, add a tiny external scheduler that runs...
+```bash
+wp cron event run --due-now --path=/var/www/html --allow-root
+```
+...with the same env as `wordpress`, so web pods stay boring/fast.
+
 ## Security hardening
 
 - Read-only root FS + **tmpfs** for writable dirs.
