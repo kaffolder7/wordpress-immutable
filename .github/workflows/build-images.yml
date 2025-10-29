@@ -1,4 +1,5 @@
-name: Build, Scan with Trivy, and Push Docker images (app + vendor)
+# name: Build, Scan with Trivy, and Push Docker images (app + vendor)
+name: Build, Scan with Trivy, and Push
 
 on:
   push:
@@ -69,6 +70,8 @@ jobs:
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: trivy-app.sarif
+          category: trivy-app
+          wait-for-processing: true
 
       - name: Trivy scan (vendor builder)
         uses: aquasecurity/trivy-action@0.24.0
@@ -84,6 +87,8 @@ jobs:
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: trivy-builder.sarif
+          category: trivy-builder
+          wait-for-processing: true
 
       # ---------- If scans pass, build multi-arch & push ----------
       # - name: Extract app metadata
