@@ -17,6 +17,9 @@ cat > /work/composer.json <<'JSON'
   "type": "project",
   "minimum-stability": "stable",
   "prefer-stable": true,
+  "config": {
+    "platform": { "php": "8.3.0" }
+  },
   "repositories": [
     {"type":"composer","url":"https://wpackagist.org"}
   ],

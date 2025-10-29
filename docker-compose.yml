@@ -1,10 +1,50 @@
 version: "3.9"
 
+x-common-env: &common_wordpress_env
+  # Need to specify, or else healthcheck will fail!!
+  HEALTHZ_TOKEN: ${HEALTHZ_TOKEN}
+
+  # WP core DB
+  WORDPRESS_DB_HOST: ${WORDPRESS_DB_HOST:?mariadb host required}
+  WORDPRESS_DB_USER: ${WORDPRESS_DB_USER:?db user required}
+  WORDPRESS_DB_PASSWORD: ${WORDPRESS_DB_PASSWORD:?db pass required}
+  WORDPRESS_DB_NAME: ${WORDPRESS_DB_NAME:-wordpress}
+
+  # Redis (optional)
+  # WP_REDIS_HOST:
+  # WP_REDIS_PORT: 
+  HEALTHZ_CHECK_REDIS: 0
+
+  # S3 Uploads (keeps filesystem immutable)
+  S3_UPLOADS_BUCKET: ${S3_UPLOADS_BUCKET:-}
+  S3_UPLOADS_REGION: ${S3_UPLOADS_REGION:-}
+  S3_UPLOADS_KEY: ${S3_UPLOADS_KEY:-}
+  S3_UPLOADS_SECRET: ${S3_UPLOADS_SECRET:-}
+  S3_UPLOADS_ENDPOINT: ${S3_UPLOADS_ENDPOINT:-}
+  S3_UPLOADS_USE_PATH_STYLE_ENDPOINT: ${S3_UPLOADS_USE_PATH_STYLE_ENDPOINT:-true}
+
+  # SMTP (optional)
+  WP_SMTP_FORCE: ${WP_SMTP_FORCE:-false}
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  SMTP_SECURE: ${SMTP_SECURE:-tls}
+
+  # Inject anything extra into wp-config via MU-plugin (last-wins)
+  WORDPRESS_CONFIG_EXTRA: |
+    define('WP_DEBUG', false);
+    define('WP_HOME', getenv('WP_HOME') ?: 'https://${PRIMARY_DOMAIN}');
+    define('WP_SITEURL', getenv('WP_SITEURL') ?: 'https://${PRIMARY_DOMAIN}');
+    define('FORCE_SSL_ADMIN', true);
+  # define('WP_CACHE', true);
+  # define('DISABLE_WP_CRON', true);
+  # define('WP_MEMORY_LIMIT', '256M');
+
 volumes:
   wp_vendor: {}        # read-only in app
   wp_content: {}
   # wp_files: {}         # optional; if you truly want immutable, avoid using this for uploads
-  wp_tmp: {}           # runtime tmp (backed by tmpfs instead is even better)
 
 services:
   # One-off vendor builder (runs fast then exits)
@@ -38,47 +78,9 @@ services:
     depends_on:
       vendor:
         condition: service_completed_successfully
-      mariadb:
-        condition: service_healthy
     environment:
-      # Need to specify, or else healthcheck will fail!!
-      HEALTHZ_TOKEN: ${HEALTHZ_TOKEN}
-
-      # WP core DB
-      WORDPRESS_DB_HOST: ${WORDPRESS_DB_HOST:?mariadb host required}
-      WORDPRESS_DB_USER: ${WORDPRESS_DB_USER:?db user required}
-      WORDPRESS_DB_PASSWORD: ${WORDPRESS_DB_PASSWORD:?db pass required}
-      WORDPRESS_DB_NAME: ${WORDPRESS_DB_NAME:-wordpress}
-
-      # S3 Uploads (keeps filesystem immutable)
-      S3_UPLOADS_BUCKET: ${S3_UPLOADS_BUCKET:-}
-      S3_UPLOADS_REGION: ${S3_UPLOADS_REGION:-}
-      S3_UPLOADS_KEY: ${S3_UPLOADS_KEY:-}
-      S3_UPLOADS_SECRET: ${S3_UPLOADS_SECRET:-}
-      S3_UPLOADS_ENDPOINT: ${S3_UPLOADS_ENDPOINT:-}
-      S3_UPLOADS_USE_PATH_STYLE_ENDPOINT: ${S3_UPLOADS_USE_PATH_STYLE_ENDPOINT:-true}
-
-      # SMTP (optional)
-      WP_SMTP_FORCE: ${WP_SMTP_FORCE:-false}
-      SMTP_HOST: ${SMTP_HOST:-}
-      SMTP_PORT: ${SMTP_PORT:-587}
-      SMTP_USER: ${SMTP_USER:-}
-      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
-      SMTP_SECURE: ${SMTP_SECURE:-tls}
-
-      # Inject anything extra into wp-config via MU-plugin (last-wins)
-      WORDPRESS_CONFIG_EXTRA: |
-        define('WP_DEBUG', false);
-        define('WP_HOME', getenv('WP_HOME') ?: 'https://${PRIMARY_DOMAIN}');
-        define('WP_SITEURL', getenv('WP_SITEURL') ?: 'https://${PRIMARY_DOMAIN}');
-        define('FORCE_SSL_ADMIN', true);
-
-      # define('WP_CACHE', true);
-      # define('DISABLE_WP_CRON', true);
-      # define('WP_MEMORY_LIMIT', '256M');
-
-    # Keep the container immutable at runtime
-    read_only: true
+      <<: *common_wordpress_env
+    read_only: true  # Keep the container immutable at runtime
     tmpfs:
       - /tmp:size=64m,mode=1777
       - /var/run:size=16m
@@ -99,13 +101,16 @@ services:
       resources:
         limits:
           memory: "768M"
+    restart: unless-stopped
+    stop_grace_period: 15s
     # Expose to your reverse proxy or Cloudflare Tunnel/LB; no direct 80/443 needed if proxied
-    ports:
-      - "8080:80"
+    # ports:
+    #   - "8080:80"
 
   # Example: managed DB elsewhere; this local MariaDB is only for demo/testing
   mariadb:
     image: mariadb:11
+    profiles: ["dev"]
     environment:
       MARIADB_RANDOM_ROOT_PASSWORD: "true"
       MARIADB_DATABASE: ${WORDPRESS_DB_NAME:-wordpress}
@@ -116,3 +121,37 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # (Optional)
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]  # pure cache
+    healthcheck:
+      test: ["CMD", "redis-cli", "PING"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # A tiny cron service so web `wordpress` workers never run cron work:
+  cron:
+    image: ghcr.io/kaffolder7/wordpress-immutable:latest
+    depends_on:
+      vendor:
+        condition: service_completed_successfully
+    environment:
+      <<: *common_wordpress_env
+      HEALTHZ_CHECK_REDIS: 0
+      # Any extra defines you need the cron job to inherit
+      # WORDPRESS_CONFIG_EXTRA: |
+      #   define('DISABLE_WP_CRON', true);
+    # Needs the same content to let wp-cli bootstrap with your mu-plugins/vendor
+    volumes:
+      - wp_vendor:/opt/vendor:ro
+      - wp_content:/var/www/html/wp-content:ro
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+      - /var/run:size=8m
+    # Simple 60s loop; swap for a real scheduler if you prefer
+    command: bash -lc 'while true; do wp cron event run --due-now --path=/var/www/html --allow-root --quiet || true; sleep 60; done'
+    restart: unless-stopped
+    stop_grace_period: 15s

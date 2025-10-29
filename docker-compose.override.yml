@@ -1,9 +1,21 @@
 services:
   wordpress:
     read_only: false
+    ports:
+      - "8080:80"
     volumes:
       - ./wp-content:/var/www/html/wp-content   # bind mounts for live editing
     environment:
       WP_ENVIRONMENT_TYPE: development
       DISALLOW_FILE_MODS: "false"
       DISALLOW_FILE_EDIT: "false"
+
+  mariadb:
+    profiles: ["dev"]
+
+  cron:
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    volumes:
+      - ./wp-content:/var/www/html/wp-content

@@ -1,6 +1,10 @@
 # name: Build, Scan with Trivy, and Push Docker images (app + vendor)
 name: Build, Scan with Trivy, and Push
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches: [ main ]
@@ -112,6 +116,8 @@ jobs:
       #     labels: ${{ steps.meta_app.outputs.labels }}
       #     cache-from: type=gha
       #     cache-to: type=gha,mode=max
+      #     provenance: true       # ✅ build attestations
+      #     sbom: true             # ✅ attach SBOM (spdx.json)
 
       # - name: Extract vendor builder metadata
       #   id: meta_builder
@@ -134,3 +140,5 @@ jobs:
       #     labels: ${{ steps.meta_builder.outputs.labels }}
       #     cache-from: type=gha
       #     cache-to: type=gha,mode=max
+      #     provenance: true       # ✅ build attestations
+      #     sbom: true             # ✅ attach SBOM (spdx.json)
