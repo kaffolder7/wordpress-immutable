@@ -14,17 +14,17 @@ An immutable, production-oriented WordPress stack designed for **multi-instance*
 
 ## Repo layout
 
-- **`.github/workflows/`**
+- `.github/workflows/`
   - `build-images.yml` &mdash; Build, scan (Trivy), and push app + vendor-builder images
   - `theme-release.yml` &mdash; Build theme, tag, bump `COMPOSER_REQUIRE`, trigger Coolify
-- **`builder/`**
+- `builder/`
   - `Dockerfile` &mdash; Composer-based builder image
   - `entrypoint.sh` &mdash; Installs packages into `/opt/vendor` and `/opt/wp-content`
-- **`mu-plugins/`**
+- `mu-plugins/`
   - `000-env-config.php` &mdash; Loads vendor autoload, maps S3/SMTP/env → WP constants
   - `001-hardening.php` &mdash; Disallow file mods/auto updates in prod
   - `002-disable-users.php` &mdash; Simple account disable via user meta
-- **`php/`**
+- `php/`
   - `custom.ini` &mdash; PHP runtime settings
 - `app.Dockerfile` &mdash; Immutable WordPress runtime (Apache)
 - `docker-compose.yml` &mdash; Production-ish stack (stateless web + vendor builder)

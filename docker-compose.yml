@@ -1,6 +1,8 @@
 version: "3.9"
 
 x-common-env: &common_wordpress_env
+  WP_ENVIRONMENT_TYPE: ${WP_ENVIRONMENT_TYPE:-production}
+
   # Need to specify, or else healthcheck will fail!!
   HEALTHZ_TOKEN: ${HEALTHZ_TOKEN}
 
@@ -37,8 +39,8 @@ x-common-env: &common_wordpress_env
     define('WP_HOME', getenv('WP_HOME') ?: 'https://${PRIMARY_DOMAIN}');
     define('WP_SITEURL', getenv('WP_SITEURL') ?: 'https://${PRIMARY_DOMAIN}');
     define('FORCE_SSL_ADMIN', true);
+    define('DISABLE_WP_CRON', true);
   # define('WP_CACHE', true);
-  # define('DISABLE_WP_CRON', true);
   # define('WP_MEMORY_LIMIT', '256M');
 
 volumes:

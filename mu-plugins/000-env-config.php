@@ -9,6 +9,20 @@ if (file_exists($vendorPath)) {
 }
 
 /**
+ * WordPress salts (optional via env; safer than baking into image)
+ * 
+ * Generate with: `wp config shuffle-salts`
+ */
+$salts = [
+    'AUTH_KEY','SECURE_AUTH_KEY','LOGGED_IN_KEY','NONCE_KEY',
+    'AUTH_SALT','SECURE_AUTH_SALT','LOGGED_IN_SALT','NONCE_SALT'
+];
+foreach ($salts as $s) {
+    $v = getenv($s);
+    if ($v && !defined($s)) define($s, $v);
+}
+
+/**
  * Env-driven config injection.
  * Anything you pass in WORDPRESS_CONFIG_EXTRA (multiline) is appended here.
  * We also honor specific env vars for common services.
@@ -57,7 +71,8 @@ if (getenv('WP_SMTP_FORCE') === 'true') {
 
 // Allow raw extra PHP from env (last so it can override)
 $extra = getenv('WORDPRESS_CONFIG_EXTRA');
-if ($extra) {
+$allow = getenv('ALLOW_CONFIG_EXTRA') === 'true';  // default false
+if ($extra && $allow) {
     eval("?>".$extra);
 }
 /* if ($extra = getenv('WORDPRESS_CONFIG_EXTRA')) { eval("?>".$extra); } */

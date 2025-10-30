@@ -35,7 +35,14 @@ if (getenv('HEALTHZ_CHECK_REDIS') === '1') {
     $redisPort = intval(getenv('WP_REDIS_PORT') ?: 6379);
     $errno = 0; $errstr = '';
     $sock = @fsockopen($redisHost, $redisPort, $errno, $errstr, 0.5);
-    if ($sock) { fwrite($sock, "*1\r\n$4\r\nPING\r\n"); fclose($sock); } else { $errors[] = 'redis'; }
+    // if ($sock) { fwrite($sock, "*1\r\n$4\r\nPING\r\n"); fclose($sock); } else { $errors[] = 'redis'; }
+    if ($sock) {
+        stream_set_timeout($sock, 1);
+        fwrite($sock, "*1\r\n$4\r\nPING\r\n");
+        $resp = fgets($sock);
+        fclose($sock);
+        if (stripos($resp ?? '', 'PONG') === false) { $errors[] = 'redis'; }
+    } else { $errors[] = 'redis'; }
 }
 
 // Optional: avoid marking healthy during maintenance/update

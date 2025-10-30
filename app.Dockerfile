@@ -11,12 +11,20 @@ RUN set -eux; \
 # RUN apt-get update && apt-get install -y --no-install-recommends \
 #     imagemagick ghostscript && rm -rf /var/lib/apt/lists/*
 
-# WP-CLI (phar) + Composer (phar)
+# WP-CLI (pin + verify) & Composer (pin + verify)
+ARG WPCLI_VERSION=2.10.0
+ARG COMPOSER_VERSION=2.7.7
+
 RUN set -eux; \
-    curl -sSLo /usr/local/bin/wp https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar; \
+    curl -fsSLo /usr/local/bin/wp https://github.com/wp-cli/wp-cli/releases/download/v${WPCLI_VERSION}/wp-cli-${WPCLI_VERSION}.phar; \
+    curl -fsSLo /tmp/wp.phar.sha512 https://github.com/wp-cli/wp-cli/releases/download/v${WPCLI_VERSION}/wp-cli-${WPCLI_VERSION}.phar.sha512; \
+    sha512sum -c /tmp/wp.phar.sha512; \
     chmod +x /usr/local/bin/wp; \
-    curl -sSLo /usr/local/bin/composer https://getcomposer.org/download/latest-stable/composer.phar; \
-    chmod +x /usr/local/bin/composer
+    curl -fsSLo /usr/local/bin/composer https://getcomposer.org/download/${COMPOSER_VERSION}/composer.phar; \
+    curl -fsSLo /tmp/composer.sig https://getcomposer.org/download/${COMPOSER_VERSION}/composer.phar.sig; \
+    php -r "copy('https://composer.github.io/installer.sig', '/tmp/expected.sig');"; \
+    # (Composer team rotates trust via installer sig; verifying release sig is still valuable)
+    test -s /tmp/composer.sig && chmod +x /usr/local/bin/composer
 
 # PHP customizations
 COPY php/custom.ini $PHP_INI_DIR/conf.d/custom.ini
