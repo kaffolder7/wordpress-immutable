@@ -112,6 +112,15 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.created=${{ github.run_id }}
 
+      - name: Set up QEMU (multi-arch)
+        uses: docker/setup-qemu-action@v3.6.0
+
+      - name: Set up Buildx (docker-container driver)
+        uses: docker/setup-buildx-action@v3.11.1
+        with:
+          install: true
+          driver: docker-container
+
       - name: Build & push app image (multi-arch)
         uses: docker/build-push-action@v5.3.0
         with:
@@ -135,6 +144,15 @@ jobs:
       #       type=ref,event=branch
       #       type=sha
       #       type=raw,value=latest
+
+      # - name: Set up QEMU (multi-arch)
+      #   uses: docker/setup-qemu-action@v3.6.0
+
+      # - name: Set up Buildx (docker-container driver)
+      #   uses: docker/setup-buildx-action@v3.11.1
+      #   with:
+      #     install: true
+      #     driver: docker-container
 
       # - name: Build & push vendor builder image (multi-arch)
       #   uses: docker/build-push-action@v5.3.0
