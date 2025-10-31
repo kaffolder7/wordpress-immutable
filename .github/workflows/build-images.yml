@@ -32,10 +32,10 @@ jobs:
       BUILDER_IMAGE: ghcr.io/${{ github.repository_owner }}/wp-vendor-builder
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
 
       - name: Login to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@v3.6.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -44,7 +44,7 @@ jobs:
       # ---------- Build locally (scanable) ----------
       # Use --load (single-arch) so Trivy can scan the local image tag.
       - name: Build app image (scan target)
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v5.3.0
         with:
           context: .
           file: ./app.Dockerfile
@@ -52,7 +52,7 @@ jobs:
           load: true          # builds a local image named app:scan
 
       - name: Build vendor builder image (scan target)
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v5.3.0
         with:
           context: ./builder
           file: ./builder/Dockerfile
@@ -69,9 +69,10 @@ jobs:
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
           ignore-unfixed: true
+          exit-code: 1
 
       - name: Upload SARIF (app)
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v3.26.11
         with:
           sarif_file: trivy-app.sarif
           category: trivy-app
@@ -86,42 +87,48 @@ jobs:
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
           ignore-unfixed: true
+          exit-code: 1
 
       - name: Upload SARIF (vendor builder)
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v3.26.11
         with:
           sarif_file: trivy-builder.sarif
           category: trivy-builder
           wait-for-processing: true
 
       # ---------- If scans pass, build multi-arch & push ----------
-      # - name: Extract app metadata
-      #   id: meta_app
-      #   uses: docker/metadata-action@v5
-      #   with:
-      #     images: ${{ env.APP_IMAGE }}
-      #     tags: |
-      #       type=ref,event=branch
-      #       type=sha
-      #       type=raw,value=latest
+      - name: Extract app metadata
+        id: meta_app
+        uses: docker/metadata-action@v5.8.0
+        with:
+          images: ${{ env.APP_IMAGE }}
+          tags: |
+            type=ref,event=branch
+            type=sha
+            type=raw,value=latest
+          labels: |
+            org.opencontainers.image.title=wordpress-immutable
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.created=${{ github.run_id }}
 
-      # - name: Build & push app image (multi-arch)
-      #   uses: docker/build-push-action@v5
-      #   with:
-      #     context: .
-      #     file: ./app.Dockerfile
-      #     push: true
-      #     platforms: linux/amd64,linux/arm64
-      #     tags: ${{ steps.meta_app.outputs.tags }}
-      #     labels: ${{ steps.meta_app.outputs.labels }}
-      #     cache-from: type=gha
-      #     cache-to: type=gha,mode=max
-      #     provenance: true       # ✅ build attestations
-      #     sbom: true             # ✅ attach SBOM (spdx.json)
+      - name: Build & push app image (multi-arch)
+        uses: docker/build-push-action@v5.3.0
+        with:
+          context: .
+          file: ./app.Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta_app.outputs.tags }}
+          labels: ${{ steps.meta_app.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: true       # ✅ build attestations
+          sbom: true             # ✅ attach SBOM (spdx.json)
 
       # - name: Extract vendor builder metadata
       #   id: meta_builder
-      #   uses: docker/metadata-action@v5
+      #   uses: docker/metadata-action@v5.8.0
       #   with:
       #     images: ${{ env.BUILDER_IMAGE }}
       #     tags: |
@@ -130,7 +137,7 @@ jobs:
       #       type=raw,value=latest
 
       # - name: Build & push vendor builder image (multi-arch)
-      #   uses: docker/build-push-action@v5
+      #   uses: docker/build-push-action@v5.3.0
       #   with:
       #     context: ./builder
       #     file: ./builder/Dockerfile

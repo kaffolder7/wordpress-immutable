@@ -14,7 +14,8 @@ x-common-env: &common_wordpress_env
 
   # Redis (optional)
   # WP_REDIS_HOST:
-  # WP_REDIS_PORT: 
+  # WP_REDIS_PORT:
+  # WP_REDIS_PREFIX:  # unique per site
   HEALTHZ_CHECK_REDIS: 0
 
   # S3 Uploads (keeps filesystem immutable)
@@ -40,7 +41,7 @@ x-common-env: &common_wordpress_env
     define('WP_SITEURL', getenv('WP_SITEURL') ?: 'https://${PRIMARY_DOMAIN}');
     define('FORCE_SSL_ADMIN', true);
     define('DISABLE_WP_CRON', true);
-  # define('WP_CACHE', true);
+  # define('WP_CACHE', true);  # enable for Redis
   # define('WP_MEMORY_LIMIT', '256M');
 
 volumes:
@@ -150,6 +151,7 @@ services:
     volumes:
       - wp_vendor:/opt/vendor:ro
       - wp_content:/var/www/html/wp-content:ro
+    read_only: true
     tmpfs:
       - /tmp:size=32m,mode=1777
       - /var/run:size=8m
