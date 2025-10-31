@@ -4,17 +4,14 @@ FROM wordpress:6.8.3-php8.3-apache
 ARG WPCLI_VERSION=2.10.0
 ARG COMPOSER_VERSION=2.7.7
 
-# Composer public key used for phar signatures (tags key).
-# Source: https://composer.github.io/pubkeys.html
-# Bake this here, so verification does NOT depend on a network fetch of the key.
-
-# copy the public key from the repo into the image
+# Copy the Composer *Tags Public Key* (PEM) into the image
+# File should contain the PEM from https://composer.github.io/pubkeys.html (Tags Public Key)
 COPY security/composer-tags.pub /usr/local/share/composer-tags.pub
 
 # System deps (curl, less, zip for wp-cli/composer)
 RUN set -eux; \
     apt-get update; \
-    apt-get install -y --no-install-recommends curl less unzip git ca-certificates openssl ca-certificates; \
+    apt-get install -y --no-install-recommends curl less unzip git ca-certificates openssl; \
     rm -rf /var/lib/apt/lists/*; \
     \
     # --- WP-CLI (pin + verify) ---
@@ -23,12 +20,21 @@ RUN set -eux; \
     echo "$(cat /tmp/wp.phar.sha512)  /usr/local/bin/wp" | sha512sum -c -; \
     chmod +x /usr/local/bin/wp; \
     \
-    # --- Composer (pin + verify RSA signature) ---
+    # --- Composer (pin + verify with Tags Public Key) ---
     curl -fsSLo /usr/local/bin/composer "https://getcomposer.org/download/${COMPOSER_VERSION}/composer.phar"; \
     curl -fsSLo /tmp/composer.phar.sig "https://getcomposer.org/download/${COMPOSER_VERSION}/composer.phar.sig"; \
-    openssl dgst -sha384 -verify /usr/local/share/composer-tags.pub -signature /tmp/composer.phar.sig /usr/local/bin/composer; \
+    php -r '\
+    $sig = trim(file_get_contents("/tmp/composer.phar.sig")); \
+    $sig = rtrim($sig, "=\r\n"); \
+    $sig .= str_repeat("=", (4 - (strlen($sig) % 4)) % 4); \
+    $bin = base64_decode($sig, true); \
+    if ($bin === false) { fwrite(STDERR, "Failed to base64-decode composer.phar.sig\n"); exit(1); } \
+    file_put_contents("/tmp/composer.sig.bin", $bin); \
+    '; \
+    openssl dgst -sha384 -verify /usr/local/share/composer-tags.pub \
+    -signature /tmp/composer.sig.bin /usr/local/bin/composer; \
     chmod +x /usr/local/bin/composer; \
-    rm -f /tmp/wp.phar.sha512 /tmp/composer.phar.sig
+    rm -f /tmp/wp.phar.sha512 /tmp/composer.phar.sig /tmp/composer.sig.bin
 
 # Install other PHP extensions for media
 # The base image has a good spread, but for WordPress media you’ll usually want gd, exif, maybe imagick. The official image has gd compiled in; if you rely on imagick, add:
