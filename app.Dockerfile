@@ -20,7 +20,7 @@ RUN set -eux; \
     # --- WP-CLI (pin + verify) ---
     curl -fsSLo /usr/local/bin/wp "https://github.com/wp-cli/wp-cli/releases/download/v${WPCLI_VERSION}/wp-cli-${WPCLI_VERSION}.phar"; \
     curl -fsSLo /tmp/wp.phar.sha512 "https://github.com/wp-cli/wp-cli/releases/download/v${WPCLI_VERSION}/wp-cli-${WPCLI_VERSION}.phar.sha512"; \
-    sha512sum -c /tmp/wp.phar.sha512; \
+    echo "$(cat /tmp/wp.phar.sha512)  /usr/local/bin/wp" | sha512sum -c -; \
     chmod +x /usr/local/bin/wp; \
     \
     # --- Composer (pin + verify RSA signature) ---
