@@ -1,16 +1,5 @@
 FROM wordpress:6.8.3-php8.3-apache
 
-# System deps (curl, less, zip for wp-cli/composer)
-RUN set -eux; \
-    apt-get update; \
-    apt-get install -y --no-install-recommends curl less unzip git; \
-    rm -rf /var/lib/apt/lists/*
-
-# Install other PHP extensions for media
-# The base image has a good spread, but for WordPress media you’ll usually want gd, exif, maybe imagick. The official image has gd compiled in; if you rely on imagick, add:
-# RUN apt-get update && apt-get install -y --no-install-recommends \
-#     imagemagick ghostscript && rm -rf /var/lib/apt/lists/*
-
 # WP-CLI (pin + verify) & Composer (pin + verify)
 ARG WPCLI_VERSION=2.10.0
 ARG COMPOSER_VERSION=2.7.7
@@ -18,37 +7,33 @@ ARG COMPOSER_VERSION=2.7.7
 # Composer public key used for phar signatures (tags key).
 # Source: https://composer.github.io/pubkeys.html
 # Bake this here, so verification does NOT depend on a network fetch of the key.
-ARG COMPOSER_PUBKEY="-----BEGIN PUBLIC KEY-----
-MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA0Vi/2K6apCVj76nCnCl2
-MQUPdK+A9eqkYBacXo2wQBYmyVlXm2/n/ZsX6pCLYPQTHyr5jXbkQzBw8SKqPdlh
-vA7NpbMeNCz7wP/AobvUXM8xQuXKbMDTY2uZ4O7sM+PfGbptKPBGLe8Z8d2sUnTO
-bXtX6Lrj13wkRto7st/w/Yp33RHe9SlqkiiS4MsH1jBkcIkEHsRaveZzedUaxY0M
-mba0uPhGUInpPzEHwrYqBBEtWvP97t2vtfx8I5qv28kh0Y6t+jnjL1Urid2iuQZf
-noCMFIOu4vksK5HxJxxrN0GOmGmwVQjOOtxkwikNiotZGPR4KsVj8NnBrLX7oGuM
-nQvGciiu+KoC2r3HDBrpDeBVdOWxDzT5R4iI0KoLzFh2pKqwbY+obNPS2bj+2dgJ
-rV3V5Jjry42QOCBN3c88wU1PKftOLj2ECpewY6vnE478IipiEu7EAdK8Zwj2LmTr
-RKQUSa9k7ggBkYZWAeO/2Ag0ey3g2bg7eqk+sHEq5ynIXd5lhv6tC5PBdHlWipDK
-tl2IxiEnejnOmAzGVivE1YGduYBjN+mjxDVy8KGBrjnz1JPgAvgdwJ2dYw4Rsc/e
-TzCFWGk/HM6a4f0IzBWbJ5ot0PIi4amk07IotBXDWwqDiQTwyuGCym5EqWQ2BD95
-RGv89BPD+2DLnJysngsvVaUCAwEAAQ==
------END PUBLIC KEY-----"
 
+# copy the public key from the repo into the image
+COPY security/composer-tags.pub /usr/local/share/composer-tags.pub
+
+# System deps (curl, less, zip for wp-cli/composer)
 RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends curl less unzip git ca-certificates openssl ca-certificates; \
+    rm -rf /var/lib/apt/lists/*; \
+    \
     # --- WP-CLI (pin + verify) ---
-    curl -fsSLo /usr/local/bin/wp https://github.com/wp-cli/wp-cli/releases/download/v${WPCLI_VERSION}/wp-cli-${WPCLI_VERSION}.phar; \
-    curl -fsSLo /tmp/wp.phar.sha512 https://github.com/wp-cli/wp-cli/releases/download/v${WPCLI_VERSION}/wp-cli-${WPCLI_VERSION}.phar.sha512; \
+    curl -fsSLo /usr/local/bin/wp "https://github.com/wp-cli/wp-cli/releases/download/v${WPCLI_VERSION}/wp-cli-${WPCLI_VERSION}.phar"; \
+    curl -fsSLo /tmp/wp.phar.sha512 "https://github.com/wp-cli/wp-cli/releases/download/v${WPCLI_VERSION}/wp-cli-${WPCLI_VERSION}.phar.sha512"; \
     sha512sum -c /tmp/wp.phar.sha512; \
     chmod +x /usr/local/bin/wp; \
     \
     # --- Composer (pin + verify RSA signature) ---
-    curl -fsSLo /usr/local/bin/composer https://getcomposer.org/download/${COMPOSER_VERSION}/composer.phar; \
-    curl -fsSLo /tmp/composer.phar.sig https://getcomposer.org/download/${COMPOSER_VERSION}/composer.phar.sig; \
-    # write baked pubkey to a temp file
-    printf '%s\n' "$COMPOSER_PUBKEY" > /tmp/composer-tags.pub; \
-    # verify .phar against the signature using the baked pubkey
-    openssl dgst -sha384 -verify /tmp/composer-tags.pub -signature /tmp/composer.phar.sig /usr/local/bin/composer; \
+    curl -fsSLo /usr/local/bin/composer "https://getcomposer.org/download/${COMPOSER_VERSION}/composer.phar"; \
+    curl -fsSLo /tmp/composer.phar.sig "https://getcomposer.org/download/${COMPOSER_VERSION}/composer.phar.sig"; \
+    openssl dgst -sha384 -verify /usr/local/share/composer-tags.pub -signature /tmp/composer.phar.sig /usr/local/bin/composer; \
     chmod +x /usr/local/bin/composer; \
-    rm -f /tmp/composer.phar.sig /tmp/composer-tags.pub /tmp/wp.phar.sha512
+    rm -f /tmp/wp.phar.sha512 /tmp/composer.phar.sig
+
+# Install other PHP extensions for media
+# The base image has a good spread, but for WordPress media you’ll usually want gd, exif, maybe imagick. The official image has gd compiled in; if you rely on imagick, add:
+# RUN apt-get update && apt-get install -y --no-install-recommends \
+#     imagemagick ghostscript && rm -rf /var/lib/apt/lists/*
 
 # PHP customizations
 COPY php/custom.ini $PHP_INI_DIR/conf.d/custom.ini
