@@ -4,44 +4,34 @@ FROM wordpress:6.8.3-php8.3-apache
 ARG WPCLI_VERSION=2.10.0
 ARG COMPOSER_VERSION=2.7.7
 
-# Copy the Composer **Tags Public Key** (PEM) into the image
-# File should contain the PEM from https://composer.github.io/pubkeys.html (Tags Public Key)
-COPY security/composer-tags.pub /usr/local/share/composer-tags.pub
-
 # System deps (curl, less, zip for wp-cli/composer)
 RUN set -eux; \
     apt-get update; \
-    apt-get install -y --no-install-recommends curl less unzip git ca-certificates openssl; \
+    apt-get install -y --no-install-recommends curl less unzip git ca-certificates php-cli; \
     rm -rf /var/lib/apt/lists/*; \
     \
-    # --- WP-CLI (pin + verify) ---
+    # --- WP-CLI (pin + verify SHA512) ---
     curl -fsSLo /usr/local/bin/wp "https://github.com/wp-cli/wp-cli/releases/download/v${WPCLI_VERSION}/wp-cli-${WPCLI_VERSION}.phar"; \
     curl -fsSLo /tmp/wp.phar.sha512 "https://github.com/wp-cli/wp-cli/releases/download/v${WPCLI_VERSION}/wp-cli-${WPCLI_VERSION}.phar.sha512"; \
     echo "$(cat /tmp/wp.phar.sha512)  /usr/local/bin/wp" | sha512sum -c -; \
     chmod +x /usr/local/bin/wp; \
     \
-    # --- Composer (pin + verify with Tags Public Key) ---
-    curl -fsSLo /usr/local/bin/composer "https://getcomposer.org/download/${COMPOSER_VERSION}/composer.phar"; \
-    curl -fsSLo /tmp/composer.phar.sig "https://getcomposer.org/download/${COMPOSER_VERSION}/composer.phar.sig"; \
-    php -r '\
-    $in  = file_get_contents("/tmp/composer.phar.sig"); \
-    if ($in === false) { fwrite(STDERR, "No composer.phar.sig\n"); exit(1); } \
-    $txt = trim($in); \
-    $looks_b64 = (bool) preg_match("~^[A-Za-z0-9+/\\r\\n]+={0,2}$~", $txt); \
-    if ($looks_b64) { \
-        $txt = rtrim($txt, "=\\r\\n"); \
-        $txt .= str_repeat("=", (4 - (strlen($txt) % 4)) % 4); \
-        $bin = base64_decode($txt, true); \
-        if ($bin === false) { fwrite(STDERR, "composer.phar.sig looked base64 but could not decode\n"); exit(1); } \
-        file_put_contents("/tmp/composer.sig.bin", $bin); \
-    } else { \
-        file_put_contents("/tmp/composer.sig.bin", $in); \
+    # --- Composer (install via installer.php with SHA-384 verification) ---
+    curl -fsSLo /tmp/composer-setup.php https://getcomposer.org/installer; \
+    curl -fsSLo /tmp/composer-setup.sig https://composer.github.io/installer.sig; \
+    php -r ' \
+    $sig = trim(file_get_contents("/tmp/composer-setup.sig")); \
+    $file = "/tmp/composer-setup.php"; \
+    if (hash_file("sha384", $file) !== $sig) { \
+        fwrite(STDERR, "ERROR: Invalid Composer installer checksum\n"); \
+        unlink($file); \
+        exit(1); \
     } \
     '; \
-    openssl dgst -sha384 -verify /usr/local/share/composer-tags.pub \
-    -signature /tmp/composer.sig.bin /usr/local/bin/composer; \
-    chmod +x /usr/local/bin/composer; \
-    rm -f /tmp/wp.phar.sha512 /tmp/composer.phar.sig /tmp/composer.sig.bin
+    # Install a pinned Composer version (no-ANSI; write to PATH)
+    php /tmp/composer-setup.php --no-ansi --install-dir=/usr/local/bin --filename=composer --version="${COMPOSER_VERSION}"; \
+    composer --version; \
+    rm -f /tmp/wp.phar.sha512 /tmp/composer-setup.php /tmp/composer-setup.sig
 
 # Install other PHP extensions for media
 # The base image has a good spread, but for WordPress media you’ll usually want gd, exif, maybe imagick. The official image has gd compiled in; if you rely on imagick, add:
