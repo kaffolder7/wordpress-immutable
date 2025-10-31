@@ -4,10 +4,10 @@ FROM wordpress:6.8.3-php8.3-apache
 ARG WPCLI_VERSION=2.10.0
 ARG COMPOSER_VERSION=2.7.7
 
-# System deps (curl, less, zip for wp-cli/composer)
+# System deps (no php-cli needed; php is already in the WP image)
 RUN set -eux; \
     apt-get update; \
-    apt-get install -y --no-install-recommends curl less unzip git ca-certificates php-cli; \
+    apt-get install -y --no-install-recommends curl less unzip git ca-certificates openssl; \
     rm -rf /var/lib/apt/lists/*; \
     \
     # --- WP-CLI (pin + verify SHA512) ---
@@ -16,7 +16,7 @@ RUN set -eux; \
     echo "$(cat /tmp/wp.phar.sha512)  /usr/local/bin/wp" | sha512sum -c -; \
     chmod +x /usr/local/bin/wp; \
     \
-    # --- Composer (install via installer.php with SHA-384 verification) ---
+    # --- Composer (installer with SHA-384 verification; pinned version) ---
     curl -fsSLo /tmp/composer-setup.php https://getcomposer.org/installer; \
     curl -fsSLo /tmp/composer-setup.sig https://composer.github.io/installer.sig; \
     php -r ' \
@@ -28,7 +28,6 @@ RUN set -eux; \
         exit(1); \
     } \
     '; \
-    # Install a pinned Composer version (no-ANSI; write to PATH)
     php /tmp/composer-setup.php --no-ansi --install-dir=/usr/local/bin --filename=composer --version="${COMPOSER_VERSION}"; \
     composer --version; \
     rm -f /tmp/wp.phar.sha512 /tmp/composer-setup.php /tmp/composer-setup.sig
