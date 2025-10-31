@@ -5,7 +5,6 @@ ARG WPCLI_VERSION=2.10.0
 ARG COMPOSER_VERSION=2.7.7
 
 # Copy the Composer **Tags Public Key** (PEM) into the image
-# This is the key you attached (release tags key, not the dev/snapshot key).
 # File should contain the PEM from https://composer.github.io/pubkeys.html (Tags Public Key)
 COPY security/composer-tags.pub /usr/local/share/composer-tags.pub
 
@@ -24,17 +23,13 @@ RUN set -eux; \
     # --- Composer (pin + verify with Tags Public Key) ---
     curl -fsSLo /usr/local/bin/composer "https://getcomposer.org/download/${COMPOSER_VERSION}/composer.phar"; \
     curl -fsSLo /tmp/composer.phar.sig "https://getcomposer.org/download/${COMPOSER_VERSION}/composer.phar.sig"; \
-    \
-    # Auto-detect signature format:
-    # - If the .sig looks like base64 text, re-pad and decode to raw bytes
-    # - Otherwise treat it as already-raw binary
     php -r '\
     $in  = file_get_contents("/tmp/composer.phar.sig"); \
     if ($in === false) { fwrite(STDERR, "No composer.phar.sig\n"); exit(1); } \
     $txt = trim($in); \
     $looks_b64 = (bool) preg_match("~^[A-Za-z0-9+/\\r\\n]+={0,2}$~", $txt); \
     if ($looks_b64) { \
-        $txt = rtrim($txt, "=\r\n"); \
+        $txt = rtrim($txt, "=\\r\\n"); \
         $txt .= str_repeat("=", (4 - (strlen($txt) % 4)) % 4); \
         $bin = base64_decode($txt, true); \
         if ($bin === false) { fwrite(STDERR, "composer.phar.sig looked base64 but could not decode\n"); exit(1); } \
@@ -43,13 +38,10 @@ RUN set -eux; \
         file_put_contents("/tmp/composer.sig.bin", $in); \
     } \
     '; \
-    \
-    # Verify the phar with the **Tags** public key
     openssl dgst -sha384 -verify /usr/local/share/composer-tags.pub \
-    -signature /tmp/composer.sig.bin /usr/local/bin/composer \
-    \
-    chmod +x /usr/local/bin/composer \
-    rm -f /tmp/composer.phar.sig /tmp/composer.sig.bin
+    -signature /tmp/composer.sig.bin /usr/local/bin/composer; \
+    chmod +x /usr/local/bin/composer; \
+    rm -f /tmp/wp.phar.sha512 /tmp/composer.phar.sig /tmp/composer.sig.bin
 
 # Install other PHP extensions for media
 # The base image has a good spread, but for WordPress media you’ll usually want gd, exif, maybe imagick. The official image has gd compiled in; if you rely on imagick, add:
