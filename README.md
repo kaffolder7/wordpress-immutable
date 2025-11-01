@@ -29,7 +29,7 @@ An immutable, production-oriented WordPress stack designed for **multi-instance*
 - `mu-plugins/`
   - `000-env-config.php` &mdash; Loads vendor autoload, maps S3/SMTP/env → WP constants
   - `001-hardening.php` &mdash; Disallow file mods/auto updates in prod
-  - `002-canonical-home.php` &mdash; Ensures WP_HOME/WP_SITEURL point to https://$PRIMARY_DOMAIN.
+  - `002-canonical-home.php` &mdash; Ensures `WP_HOME/WP_SITEURL` point to `https://$PRIMARY_DOMAIN`.
 Redirects any mismatched host/scheme to the canonical one.
   - `003-disable-users.php` &mdash; Simple account disable via user meta
 - `php/`
