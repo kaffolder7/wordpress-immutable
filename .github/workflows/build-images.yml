@@ -1,5 +1,4 @@
-# name: Build, Scan with Trivy, and Push Docker images (app + vendor)
-name: Build, Scan with Trivy, and Push
+name: Build, Scan with Trivy, and Push Docker images (app + vendor)
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -132,38 +131,38 @@ jobs:
           labels: ${{ steps.meta_app.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          provenance: true       # ✅ build attestations
-          sbom: true             # ✅ attach SBOM (spdx.json)
+          provenance: true
+          sbom: true
 
-      # - name: Extract vendor builder metadata
-      #   id: meta_builder
-      #   uses: docker/metadata-action@v5.8.0
-      #   with:
-      #     images: ${{ env.BUILDER_IMAGE }}
-      #     tags: |
-      #       type=ref,event=branch
-      #       type=sha
-      #       type=raw,value=latest
+      - name: Extract vendor builder metadata
+        id: meta_builder
+        uses: docker/metadata-action@v5.8.0
+        with:
+          images: ${{ env.BUILDER_IMAGE }}
+          tags: |
+            type=ref,event=branch
+            type=sha
+            type=raw,value=latest
 
-      # - name: Set up QEMU (multi-arch)
-      #   uses: docker/setup-qemu-action@v3.6.0
+      - name: Set up QEMU (multi-arch)
+        uses: docker/setup-qemu-action@v3.6.0
 
-      # - name: Set up Buildx (docker-container driver)
-      #   uses: docker/setup-buildx-action@v3.11.1
-      #   with:
-      #     install: true
-      #     driver: docker-container
+      - name: Set up Buildx (docker-container driver)
+        uses: docker/setup-buildx-action@v3.11.1
+        with:
+          install: true
+          driver: docker-container
 
-      # - name: Build & push vendor builder image (multi-arch)
-      #   uses: docker/build-push-action@v5.3.0
-      #   with:
-      #     context: ./builder
-      #     file: ./builder/Dockerfile
-      #     push: true
-      #     platforms: linux/amd64,linux/arm64
-      #     tags: ${{ steps.meta_builder.outputs.tags }}
-      #     labels: ${{ steps.meta_builder.outputs.labels }}
-      #     cache-from: type=gha
-      #     cache-to: type=gha,mode=max
-      #     provenance: true       # ✅ build attestations
-      #     sbom: true             # ✅ attach SBOM (spdx.json)
+      - name: Build & push vendor builder image (multi-arch)
+        uses: docker/build-push-action@v5.3.0
+        with:
+          context: ./builder
+          file: ./builder/Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta_builder.outputs.tags }}
+          labels: ${{ steps.meta_builder.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: true
+          sbom: true
