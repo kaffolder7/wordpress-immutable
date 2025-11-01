@@ -1,11 +1,10 @@
 # syntax=docker/dockerfile:1.6
 
-# Contributors: Keep the default digest occasionally refreshed so Renovate can propose PRs off file content as well as CI-time resolution.
+# Contributors: Keep these default digests occasionally refreshed so Renovate can propose PRs off file content as well as CI-time resolution.
 ARG BASE_IMAGE="wordpress:6.8.3-php8.3-apache@sha256:d58bf36cd0911273190beb740d8c7fad5fa30f35a4198131deb11573709ad4c1"   # default as a fallback
-FROM ${BASE_IMAGE} AS app-base
-
-# Pull Composer from the official image (already pinned & trusted)
 ARG COMPOSER_IMAGE="composer:2@sha256:5248900ab8b5f7f880c2d62180e40960cd87f60149ec9a1abfd62ac72a02577c"   # default as a fallback
+
+FROM ${BASE_IMAGE} AS app-base
 FROM ${COMPOSER_IMAGE} AS composer-src
 
 FROM app-base
