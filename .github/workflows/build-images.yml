@@ -159,8 +159,11 @@ jobs:
           # COMPOSER_IMAGE=composer:2@sha256:5248900ab8b5f7f880c2d62180e40960cd87f60149ec9a1abfd62ac72a02577c
           tags: ${{ steps.meta_app.outputs.tags }}
           labels: ${{ steps.meta_app.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=app
+          cache-to: type=gha,scope=app,mode=max,ignore-error=true
+          # Use a registry-backed cache (most robust)
+          # cache-from: type=registry,ref=${{ env.APP_IMAGE }}:buildcache
+          # cache-to: type=registry,ref=${{ env.APP_IMAGE }}:buildcache,mode=max,compression=zstd,oci-mediatypes=true
           provenance: true
           sbom: true
 
@@ -210,8 +213,11 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta_builder.outputs.tags }}
           labels: ${{ steps.meta_builder.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=builder
+          cache-to: type=gha,scope=builder,mode=max,ignore-error=true
+          # Use a registry-backed cache (most robust)
+          # cache-from: type=registry,ref=${{ env.BUILDER_IMAGE }}:buildcache
+          # cache-to: type=registry,ref=${{ env.BUILDER_IMAGE }}:buildcache,mode=max,compression=zstd,oci-mediatypes=true
           provenance: true
           sbom: true
 
