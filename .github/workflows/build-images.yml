@@ -78,6 +78,7 @@ jobs:
           severity: 'CRITICAL,HIGH'
           ignore-unfixed: true
           exit-code: 1
+          timeout: '5m'
 
       - name: Upload SARIF (app)
         uses: github/codeql-action/upload-sarif@v3.26.11
@@ -96,6 +97,7 @@ jobs:
           severity: 'CRITICAL,HIGH'
           ignore-unfixed: true
           exit-code: 1
+          timeout: '5m'
 
       - name: Upload SARIF (vendor builder)
         uses: github/codeql-action/upload-sarif@v3.26.11
@@ -121,6 +123,10 @@ jobs:
           ts="$(grep -m1 -E '^# Generated:' apache/remoteip-cloudflare.conf | sed 's/^# Generated: //')"
           echo "ts=$ts" >> "$GITHUB_OUTPUT"
 
+      - name: Compute created timestamp
+        id: created
+        run: echo "ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
       # ---------- If scans pass, build multi-arch & push ----------
       - name: Extract app metadata
         id: meta_app
@@ -135,7 +141,7 @@ jobs:
             org.opencontainers.image.title=wordpress-immutable
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.created=${{ github.run_id }}
+            org.opencontainers.image.created=${{ steps.created.outputs.ts }}
             org.opencontainers.image.base.name=${{ steps.base.outputs.ref }}
             org.opencontainers.image.base.digest=${{ steps.base.outputs.digest }}
 
@@ -166,7 +172,10 @@ jobs:
             type=sha
             type=raw,value=latest
           labels: |
+            org.opencontainers.image.title=wp-vendor-builder
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.created=${{ steps.created.outputs.ts }}
 
       - name: Build & push vendor builder image (multi-arch)
         uses: docker/build-push-action@v5.3.0

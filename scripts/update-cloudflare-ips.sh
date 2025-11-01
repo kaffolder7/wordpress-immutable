@@ -29,3 +29,6 @@ curl -fsSL https://www.cloudflare.com/ips-v6 -o "$TMP_V6"
 rm -f "$TMP_V4" "$TMP_V6"
 
 echo "Wrote $OUT"
+
+# -- Note: Keep `RemoteIPHeader CF-Connecting-IP` (primary) and do not also trust `X-Forwarded-For` unless you have a compelling reason. If you must, prefer `CF-Connecting-IP` and treat `X-Forwarded-For` only as a fallback.
+# -- Note: If you ever put another proxy between CF and Apache (e.g., an Nginx forwarder or a container network hop), list its egress CIDRs as `RemoteIPInternalProxy` so RemoteIP processes the headers in the right hop order.

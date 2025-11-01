@@ -69,6 +69,14 @@ if (getenv('WP_SMTP_FORCE') === 'true') {
 //     }
 // }
 
+// Make the PD defensive about schemes
+$pd = getenv('PRIMARY_DOMAIN') ?: '';
+if ($pd && !preg_match('~^https?://~i', $pd)) {
+    $pd = "https://{$pd}";
+}
+if (!defined('WP_HOME'))    define('WP_HOME',    getenv('WP_HOME')    ?: $pd);
+if (!defined('WP_SITEURL')) define('WP_SITEURL', getenv('WP_SITEURL') ?: $pd);
+
 // Allow raw extra PHP from env (last so it can override)
 $extra = getenv('WORDPRESS_CONFIG_EXTRA');
 $allow = getenv('ALLOW_CONFIG_EXTRA') === 'true';  // default false

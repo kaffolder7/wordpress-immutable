@@ -37,8 +37,6 @@ x-common-env: &common_wordpress_env
   # Inject anything extra into wp-config via MU-plugin (last-wins)
   WORDPRESS_CONFIG_EXTRA: |
     define('WP_DEBUG', false);
-    define('WP_HOME', getenv('WP_HOME') ?: 'https://${PRIMARY_DOMAIN}');
-    define('WP_SITEURL', getenv('WP_SITEURL') ?: 'https://${PRIMARY_DOMAIN}');
     define('FORCE_SSL_ADMIN', true);
     define('DISABLE_WP_CRON', true);
   # define('WP_CACHE', true);  # enable for Redis
@@ -52,9 +50,9 @@ volumes:
 services:
   # One-off vendor builder (runs fast then exits)
   vendor:
-    # image: ghcr.io/kaffolder7/wp-vendor-builder:latest
-    build:
-      context: ./builder
+    image: ghcr.io/kaffolder7/wp-vendor-builder:latest
+    # build:
+    #   context: ./builder
     environment:
       # space-separated package list; change per environment without rebuilds
       # Example packages from WP Packagist:
@@ -74,15 +72,16 @@ services:
     restart: "no"
 
   wordpress:
+    image: ghcr.io/kaffolder7/wordpress-immutable:latest
     # build:
     #   context: .
     #   dockerfile: ./app.Dockerfile
-    image: ghcr.io/kaffolder7/wordpress-immutable:latest
     depends_on:
       vendor:
         condition: service_completed_successfully
     environment:
       <<: *common_wordpress_env
+      PRIMARY_DOMAIN: 'https://example.com'
     read_only: true  # Keep the container immutable at runtime
     tmpfs:
       - /tmp:size=64m,mode=1777
@@ -94,9 +93,7 @@ services:
       # - wp_files:/var/www/html/wp-content  # (optional; consider mounting subdirs readonly)
       - wp_content:/var/www/html/wp-content:ro
     healthcheck:
-      # test: ["CMD", "curl", "-sf", "http://127.0.0.1/healthz?t=${HEALTHZ_TOKEN}"]
-      # test: ["CMD", "curl", "-fsS", "http://localhost/healthz.php"]
-      test: ["CMD", "curl", "-fsS", "http://localhost/healthz.php?t=${HEALTHZ_TOKEN}"]
+      test: ["CMD-SHELL", "php -r 'exit((bool)@file_get_contents(\"http://localhost/healthz.php?t=${HEALTHZ_TOKEN}\")?0:1);'"]
       interval: 15s  # 15–30s
       timeout: 3s  # 2–5s
       retries: 5  # 5-10
@@ -112,7 +109,7 @@ services:
 
   # Example: managed DB elsewhere; this local MariaDB is only for demo/testing
   mariadb:
-    image: mariadb:11
+    image: mariadb:11.8.3
     profiles: ["dev"]
     environment:
       MARIADB_RANDOM_ROOT_PASSWORD: "true"
@@ -127,7 +124,7 @@ services:
 
   # (Optional)
   redis:
-    image: redis:7-alpine
+    image: redis:7.4.6-alpine
     command: ["redis-server", "--save", "", "--appendonly", "no"]  # pure cache
     healthcheck:
       test: ["CMD", "redis-cli", "PING"]
@@ -156,7 +153,14 @@ services:
       - /tmp:size=32m,mode=1777
       - /var/run:size=8m
     # Simple 60s loop; swap for a real scheduler if you prefer
-    command: bash -lc 'while true; do wp cron event run --due-now --path=/var/www/html --allow-root --quiet || true; sleep 60; done'
+    # command: bash -lc 'while true; do wp cron event run --due-now --path=/var/www/html --allow-root --quiet || true; sleep 60; done'
+    command: >
+      bash -lc '
+        while true; do
+          timeout 40s wp cron event run --due-now --path=/var/www/html --allow-root --quiet || true;
+          sleep 60;
+        done
+      '
     restart: unless-stopped
     stop_grace_period: 15s
     healthcheck:
