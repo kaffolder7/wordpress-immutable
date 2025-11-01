@@ -1,0 +1,29 @@
+name: Refresh Cloudflare IPs
+on:
+  schedule: [{ cron: "0 8 * * 1" }]  # Mondays 08:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - name: Update CF IPs
+        run: |
+          bash scripts/update-cloudflare-ips.sh
+
+      - name: Create PR
+        uses: peter-evans/create-pull-request@v6.1.0
+        with:
+          commit-message: "chore(apache): refresh Cloudflare IPs"
+          title: "Refresh Cloudflare IPs"
+          body: "Automated refresh from https://www.cloudflare.com/ips/"
+          branch: "chore/update-cf-ips"
+          base: "main"
+          add-paths: |
+            apache/remoteip-cloudflare.conf

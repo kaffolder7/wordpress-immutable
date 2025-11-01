@@ -1,4 +1,7 @@
-FROM wordpress:6.8.3-php8.3-apache
+# syntax=docker/dockerfile:1.6
+
+ARG BASE_IMAGE="wordpress:6.8.3-php8.3-apache@sha256:d58bf36cd0911273190beb740d8c7fad5fa30f35a4198131deb11573709ad4c1"   # default as a fallback
+FROM ${BASE_IMAGE}
 
 # WP-CLI (pin + verify) & Composer (pin + verify)
 ARG WPCLI_VERSION=2.10.0
@@ -74,35 +77,19 @@ RUN a2enmod headers \
     && a2enconf security-headers
 
 # Trust the real client IP behind Cloudflare. Enable `mod_remoteip` and map `CF-Connecting-IP` so WordPress sees the real client IP (affects rate-limit/abuse plugins and logs)
-# (Keep these ranges in config management so they can be refreshed when Cloudflare updates them.)
-RUN a2enmod remoteip rewrite headers \
-    && printf '%s\n' \
-        'RemoteIPHeader CF-Connecting-IP' \
-        '# Trust Cloudflare (update list periodically via config management)' \
-        'RemoteIPTrustedProxy 173.245.48.0/20' \
-        'RemoteIPTrustedProxy 103.21.244.0/22' \
-        'RemoteIPTrustedProxy 103.22.200.0/22' \
-        'RemoteIPTrustedProxy 103.31.4.0/22' \
-        'RemoteIPTrustedProxy 141.101.64.0/18' \
-        'RemoteIPTrustedProxy 108.162.192.0/18' \
-        'RemoteIPTrustedProxy 190.93.240.0/20' \
-        'RemoteIPTrustedProxy 188.114.96.0/20' \
-        'RemoteIPTrustedProxy 197.234.240.0/22' \
-        'RemoteIPTrustedProxy 198.41.128.0/17' \
-        'RemoteIPTrustedProxy 162.158.0.0/15' \
-        'RemoteIPTrustedProxy 104.16.0.0/13' \
-        'RemoteIPTrustedProxy 104.24.0.0/14' \
-        'RemoteIPTrustedProxy 172.64.0.0/13' \
-        'RemoteIPTrustedProxy 131.0.72.0/22' \
-        'RemoteIPTrustedProxy 2400:cb00::/32' \
-        'RemoteIPTrustedProxy 2606:4700::/32' \
-        'RemoteIPTrustedProxy 2803:f800::/32' \
-        'RemoteIPTrustedProxy 2405:b500::/32' \
-        'RemoteIPTrustedProxy 2405:8100::/32' \
-        'RemoteIPTrustedProxy 2a06:98c0::/29' \
-        'RemoteIPTrustedProxy 2c0f:f248::/32' \
-    > /etc/apache2/conf-available/remoteip-cloudflare.conf \
-    && a2enconf remoteip-cloudflare
+# Cloudflare egress ranges (v4+v6). Update with `scripts/update-cloudflare-ips.sh`
+# See header inside the file for "Generated:" timestamp & source URL.
+COPY apache/remoteip-cloudflare.conf /etc/apache2/conf-available/remoteip-cloudflare.conf
+RUN a2enmod remoteip && a2enconf remoteip-cloudflare
+# -- Note: Keep `RemoteIPHeader CF-Connecting-IP` (primary) and do not also trust `X-Forwarded-For` unless you have a compelling reason. If you must, prefer `CF-Connecting-IP` and treat `X-Forwarded-For` only as a fallback.
+# -- Note: If you ever put another proxy between CF and Apache (e.g., an Nginx forwarder or a container network hop), list its egress CIDRs as `RemoteIPInternalProxy` so RemoteIP processes the headers in the right hop order.
+
+# Extract the ISO timestamp from the conf header (first match after "Generated:")
+ARG CF_IPS_TS
+# (We’ll set CF_IPS_TS from the workflow; see below)
+
+LABEL org.opencontainers.image.cloudflare_ips.generated="${CF_IPS_TS}" \
+      org.opencontainers.image.cloudflare_ips.source="https://www.cloudflare.com/ips/"
 
 # Log the real client IP with `mod_remoteip`
 # -- Make sure your Apache log format uses `%a` (the client IP after RemoteIP) so logs/IDS/rate-limit plugins work correctly.
@@ -150,6 +137,13 @@ RUN printf '%s\n' \
 
 # Silence the Apache FQDN warning
 RUN printf 'ServerName localhost\n' > /etc/apache2/conf-available/fqdn.conf && a2enconf fqdn
+
+# Assert HTTPS when CF forwards it
+# -- Prevents mixed-content/redirect loop edge cases when origin sees http but the request was HTTPS at CF.
+RUN printf '%s\n' \
+    'SetEnvIfNoCase X-Forwarded-Proto "^https$" HTTPS=on' \
+    > /etc/apache2/conf-available/https-forwarded.conf \
+    && a2enconf https-forwarded
 
 # MU plugins: env loader + hardening
 RUN mkdir -p /var/www/html/wp-content/mu-plugins

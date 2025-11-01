@@ -40,6 +40,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Set up QEMU (multi-arch)
+        uses: docker/setup-qemu-action@v3.6.0
+
+      - name: Set up Buildx (docker-container driver)
+        uses: docker/setup-buildx-action@v3.11.1
+        with:
+          install: true
+          driver: docker-container
+
       # ---------- Build locally (scanable) ----------
       # Use --load (single-arch) so Trivy can scan the local image tag.
       - name: Build app image (scan target)
@@ -95,6 +104,23 @@ jobs:
           category: trivy-builder
           wait-for-processing: true
 
+      - name: Resolve base image digest (WordPress)
+        id: base
+        run: |
+          REF="wordpress:6.8.3-php8.3-apache"
+          # Get the multi-arch manifest digest for the tag
+          DIGEST="$(docker buildx imagetools inspect "$REF" | awk '/Digest:/ {print $2; exit}')"
+          echo "ref=$REF" >> "$GITHUB_OUTPUT"
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+          echo "Base image pinned: $REF@$DIGEST"
+
+      - name: Read CF IPs generated timestamp
+        id: cf
+        shell: bash
+        run: |
+          ts="$(grep -m1 -E '^# Generated:' apache/remoteip-cloudflare.conf | sed 's/^# Generated: //')"
+          echo "ts=$ts" >> "$GITHUB_OUTPUT"
+
       # ---------- If scans pass, build multi-arch & push ----------
       - name: Extract app metadata
         id: meta_app
@@ -110,15 +136,8 @@ jobs:
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.created=${{ github.run_id }}
-
-      - name: Set up QEMU (multi-arch)
-        uses: docker/setup-qemu-action@v3.6.0
-
-      - name: Set up Buildx (docker-container driver)
-        uses: docker/setup-buildx-action@v3.11.1
-        with:
-          install: true
-          driver: docker-container
+            org.opencontainers.image.base.name=${{ steps.base.outputs.ref }}
+            org.opencontainers.image.base.digest=${{ steps.base.outputs.digest }}
 
       - name: Build & push app image (multi-arch)
         uses: docker/build-push-action@v5.3.0
@@ -127,6 +146,9 @@ jobs:
           file: ./app.Dockerfile
           push: true
           platforms: linux/amd64,linux/arm64
+          build-args: |
+            BASE_IMAGE=${{ steps.base.outputs.ref }}@${{ steps.base.outputs.digest }}
+            CF_IPS_TS=${{ steps.cf.outputs.ts }}
           tags: ${{ steps.meta_app.outputs.tags }}
           labels: ${{ steps.meta_app.outputs.labels }}
           cache-from: type=gha
@@ -143,15 +165,8 @@ jobs:
             type=ref,event=branch
             type=sha
             type=raw,value=latest
-
-      - name: Set up QEMU (multi-arch)
-        uses: docker/setup-qemu-action@v3.6.0
-
-      - name: Set up Buildx (docker-container driver)
-        uses: docker/setup-buildx-action@v3.11.1
-        with:
-          install: true
-          driver: docker-container
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
 
       - name: Build & push vendor builder image (multi-arch)
         uses: docker/build-push-action@v5.3.0

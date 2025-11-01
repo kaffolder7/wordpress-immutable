@@ -159,3 +159,8 @@ services:
     command: bash -lc 'while true; do wp cron event run --due-now --path=/var/www/html --allow-root --quiet || true; sleep 60; done'
     restart: unless-stopped
     stop_grace_period: 15s
+    healthcheck:
+      test: ["CMD-SHELL","wp cron event list --path=/var/www/html --allow-root >/dev/null 2>&1 || exit 1"]
+      interval: 1m
+      timeout: 5s
+      retries: 3

@@ -18,7 +18,10 @@ cat > /work/composer.json <<'JSON'
   "minimum-stability": "stable",
   "prefer-stable": true,
   "config": {
-    "platform": { "php": "8.3.0" }
+    "platform": { "php": "8.3.0" },
+    "allow-plugins": {
+      "composer/installers": true
+    }
   },
   "repositories": [
     {"type":"composer","url":"https://wpackagist.org"}
@@ -49,6 +52,7 @@ COMMON_FLAGS="--no-dev --prefer-dist --no-ansi --no-progress --no-scripts"
 if [[ -n "${COMPOSER_REQUIRE:-}" ]]; then
   set -x
   composer require $COMMON_FLAGS --working-dir=/work ${COMPOSER_REQUIRE}
+  echo "[builder] lockfile sha256: $(sha256sum /work/composer.lock | cut -d' ' -f1)"
   set +x
 else
   composer install $COMMON_FLAGS --working-dir=/work

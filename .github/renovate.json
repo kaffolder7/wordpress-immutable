@@ -1,0 +1,21 @@
+{
+  "extends": ["config:recommended"],
+  "docker": { "pinDigests": true },
+  "packageRules": [
+    {
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["wordpress"],
+      "groupName": "wordpress base image",
+      "schedule": ["before 7am on saturday"]
+    }
+  ],
+  "regexManagers": [
+    {
+      "fileMatch": ["^app\\.Dockerfile$"],
+      "datasourceTemplate": "docker",
+      "matchStrings": [
+        "ARG BASE_IMAGE=\"(?<depName>[\\w./-]+):(?<currentValue>[\\w.+-]+)@sha256:[a-f0-9]{64}\""
+      ]
+    }
+  ]
+}
