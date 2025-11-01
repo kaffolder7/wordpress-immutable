@@ -9,6 +9,7 @@ services:
       WP_ENVIRONMENT_TYPE: development
       DISALLOW_FILE_MODS: "false"
       DISALLOW_FILE_EDIT: "false"
+      WP_DEBUG_LOG: "true"
       ALLOW_CONFIG_EXTRA: true
 
   mariadb:

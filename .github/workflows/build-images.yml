@@ -1,4 +1,5 @@
-name: Build, Scan with Trivy, and Push Docker images (app + vendor)
+# name: Build, Scan with Trivy, and Push Docker images (app + vendor)
+name: Build, Scan with Trivy, and Push
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -155,12 +156,35 @@ jobs:
           build-args: |
             BASE_IMAGE=${{ steps.base.outputs.ref }}@${{ steps.base.outputs.digest }}
             CF_IPS_TS=${{ steps.cf.outputs.ts }}
+          # COMPOSER_IMAGE=composer:2@sha256:5248900ab8b5f7f880c2d62180e40960cd87f60149ec9a1abfd62ac72a02577c
           tags: ${{ steps.meta_app.outputs.tags }}
           labels: ${{ steps.meta_app.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: true
           sbom: true
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      # (Optional) show the identity used for signing
+      - name: Cosign version
+        run: cosign version
+
+      # Sign the app image (adjust refs)
+      - name: Sign app image (latest)
+        env:
+          COSIGN_EXPERIMENTAL: "1"     # keyless
+        run: |
+          cosign sign --yes "${{ env.APP_IMAGE }}:latest"
+
+      # If you also push a semver tag:
+      # - name: Sign app image (semver)
+      #   if: env.APP_TAG != ''
+      #   env:
+      #     COSIGN_EXPERIMENTAL: "1"
+      #   run: |
+      #     cosign sign --yes "${{ env.APP_IMAGE }}:${{ env.APP_TAG }}"
 
       - name: Extract vendor builder metadata
         id: meta_builder
@@ -190,3 +214,10 @@ jobs:
           cache-to: type=gha,mode=max
           provenance: true
           sbom: true
+
+      - name: Sign builder image
+        if: env.BUILDER_IMAGE != ''
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+        run: |
+          cosign sign --yes "${{ env.BUILDER_IMAGE }}:latest"

@@ -6,8 +6,11 @@ OUT="apache/remoteip-cloudflare.conf"
 TMP_V4="$(mktemp)"
 TMP_V6="$(mktemp)"
 
-curl -fsSL https://www.cloudflare.com/ips-v4 -o "$TMP_V4"
-curl -fsSL https://www.cloudflare.com/ips-v6 -o "$TMP_V6"
+curl --max-time 10 -fsSL https://www.cloudflare.com/ips-v4 -o "$TMP_V4"
+curl --max-time 10 -fsSL https://www.cloudflare.com/ips-v6 -o "$TMP_V6"
+
+# sanity: require at least N lines
+test "$(wc -l < "$TMP_V4")" -ge 5 && test "$(wc -l < "$TMP_V6")" -ge 5 || { echo "CF IP list too short"; exit 1; }
 
 {
   echo "# Generated: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"

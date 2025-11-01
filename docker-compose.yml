@@ -93,10 +93,12 @@ services:
       # - wp_files:/var/www/html/wp-content  # (optional; consider mounting subdirs readonly)
       - wp_content:/var/www/html/wp-content:ro
     healthcheck:
+      # test: ["CMD-SHELL", "curl -fsS http://localhost/healthz.php?t=${HEALTHZ_TOKEN} >/dev/null || exit 1"]
       test: ["CMD-SHELL", "php -r 'exit((bool)@file_get_contents(\"http://localhost/healthz.php?t=${HEALTHZ_TOKEN}\")?0:1);'"]
       interval: 15s  # 15–30s
       timeout: 3s  # 2–5s
       retries: 5  # 5-10
+      start_period: 30s
     deploy:
       resources:
         limits:
@@ -157,6 +159,7 @@ services:
     command: >
       bash -lc '
         while true; do
+          sleep $((RANDOM % 10));
           timeout 40s wp cron event run --due-now --path=/var/www/html --allow-root --quiet || true;
           sleep 60;
         done

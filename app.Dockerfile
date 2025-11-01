@@ -2,11 +2,8 @@
 
 # Contributors: Keep these default digests occasionally refreshed so Renovate can propose PRs off file content as well as CI-time resolution.
 ARG BASE_IMAGE="wordpress:6.8.3-php8.3-apache@sha256:d58bf36cd0911273190beb740d8c7fad5fa30f35a4198131deb11573709ad4c1"   # default as a fallback
-ARG COMPOSER_IMAGE="composer:2@sha256:5248900ab8b5f7f880c2d62180e40960cd87f60149ec9a1abfd62ac72a02577c"   # default as a fallback
 
 FROM ${BASE_IMAGE} AS app-base
-FROM ${COMPOSER_IMAGE} AS composer-src
-
 FROM app-base
 
 # Extract the ISO timestamp from the conf header (first match after "Generated:")
@@ -43,8 +40,10 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     rm -rf /var/lib/apt/lists/*
 
 # Drop-in Composer from official image (no network, no PHP installer)
-COPY --from=composer-src /usr/bin/composer /usr/local/bin/composer
+# COPY --from=composer-src /usr/bin/composer /usr/local/bin/composer
 # (Optional) If Composer isn’t needed at runtime, delete this line:
+
+# (no Composer binary copied into the runtime)
 
 # Install other PHP extensions for media
 # The base image has a good spread, but for WordPress media you’ll usually want gd, exif, maybe imagick. The official image has gd compiled in; if you rely on imagick, add:
@@ -67,7 +66,7 @@ COPY apache/*.conf /etc/apache2/conf-available/
 RUN a2enmod headers remoteip expires deflate && \
     # Enable brotli if present (falls back to gzip)
     if [ -f /usr/lib/apache2/modules/mod_brotli.so ]; then a2enmod brotli; fi && \
-    a2enconf harden security-headers remoteip-cloudflare logformat-remoteip customlog-remoteip static-cache robots-nonprod passenv fqdn https-forwarded compression
+    a2enconf harden prefork-tuning security-headers remoteip-cloudflare logformat-remoteip customlog-remoteip static-cache robots-nonprod passenv fqdn https-forwarded compression
 
 # MU plugins: env loader + hardening
 RUN mkdir -p /var/www/html/wp-content/mu-plugins
