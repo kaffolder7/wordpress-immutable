@@ -14,15 +14,39 @@ jobs:
       - uses: actions/checkout@v4.2.2
 
       - name: Update CF IPs
+        run: bash scripts/update-cloudflare-ips.sh
+
+      - name: Detect changes
+        id: changes
         run: |
-          bash scripts/update-cloudflare-ips.sh
+          if git diff --quiet -- apache/remoteip-cloudflare.conf; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Capture timestamp
+        id: now
+        run: echo "utc=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+
+      - name: Add run summary
+        run: |
+          {
+            echo "### Cloudflare IP refresh"
+            echo ""
+            echo "- Checked at (UTC): ${{ steps.now.outputs.utc }}"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Create PR
+        if: steps.changes.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v6.1.0
         with:
           commit-message: "chore(apache): refresh Cloudflare IPs"
           title: "Refresh Cloudflare IPs"
-          body: "Automated refresh from https://www.cloudflare.com/ips/"
+          body: |
+            Automated refresh from https://www.cloudflare.com/ips/
+
+            **Checked at (UTC):** ${{ steps.now.outputs.utc }}
           branch: "chore/update-cf-ips"
           base: "main"
           add-paths: |
